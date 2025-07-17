@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Catur Dua Pemain</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      background: #f0f0f0;
+      transition: background 0.3s, color 0.3s;
+    }
+    .board {
+      display: grid;
+      grid-template-columns: repeat(8, 60px);
+      grid-template-rows: repeat(8, 60px);
+      border: 2px solid #333;
+    }
+    .square {
+      width: 60px;
+      height: 60px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 36px;
+      cursor: pointer;
+    }
+    .light { background-color: #f0d9b5; }
+    .dark { background-color: #b58863; }
+    .highlight { outline: 3px solid yellow; }
+    .attackable { outline: 3px solid red; }
+    #controls {
+      margin: 10px;
+    }
+    #controls button {
+      margin: 0 5px;
+      padding: 5px 10px;
+      cursor: pointer;
+    }
+    .dark-mode {
+      background: #1e1e1e;
+      color: #f0f0f0;
+    }
+    .dark-mode .light { background-color: #769656; }
+    .dark-mode .dark { background-color: #4b7399; }
+    #turn {
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h2>Catur Dua Pemain</h2>
+  <div id="turn">Giliran: Putih</div>
+  <div id="controls">
+    <button onclick="restartGame()">🔁 Restart</button>
+    <button onclick="undoMove()">↩️ Undo</button>
+    <button onclick="toggleDarkMode()">🌓 Toggle Mode</button>
+  </div>
+  <div class="board" id="board"></div>
+
+  <script>
+    const board = document.getElementById('board');
+    const turnDisplay = document.getElementById('turn');
+    const initialBoard = [
+      ['r','n','b','q','k','b','n','r'],
+      ['p','p','p','p','p','p','p','p'],
+      ['','','','','','','',''],
+      ['','','','','','','',''],
+      ['','','','','','','',''],
+      ['','','','','','','',''],
+      ['P','P','P','P','P','P','P','P'],
+      ['R','N','B','Q','K','B','N','R']
+    ];
+
+    const pieces = {
+      'r': '♜', 'n': '♞', 'b': '♝', 'q': '♛', 'k': '♚', 'p': '♟',
+      'R': '♖', 'N': '♘', 'B': '♗', 'Q': '♕', 'K': '♔', 'P': '♙'
+    };
+
+    let game = JSON.parse(JSON.stringify(initialBoard));
+    let selected = null;
+    let turn = 'white';
+    let history = [];
+    let gameOver = false;
+
+    function drawBoard() {
+      board.innerHTML = '';
+
+      const whiteKing = hasKing('white');
+      const blackKing = hasKing('black');
+      if (!whiteKing || !blackKing) {
+        gameOver = true;
+        alert(whiteKing ? 'Putih menang!' : 'Hitam menang!');
+        turnDisplay.textContent = `${whiteKing ? 'Putih' : 'Hitam'} menang! Permainan selesai.`;
+        setTimeout(restartGame, 100); // restart otomatis
+        return;
+      }
+
+      for (let row = 0; row < 8; row++) {
+        for (let col = 0; col < 8; col++) {
+          const square = document.createElement('div');
+          square.className = 'square ' + ((row + col) % 2 === 0 ? 'light' : 'dark');
+          square.dataset.row = row;
+          square.dataset.col = col;
+          const piece = game[row][col];
+          square.textContent = pieces[piece] || '';
+
+          if (selected && !gameOver) {
+            const [fromRow, fromCol] = selected;
+            const fromPiece = game[fromRow][fromCol];
+            if (isValidMove(fromPiece, fromRow, fromCol, row, col)) {
+              if (game[row][col]) {
+                square.classList.add('attackable');
+              } else {
+                square.classList.add('highlight');
+              }
+            }
+          }
+
+          if (!gameOver) square.addEventListener('click', handleClick);
+          board.appendChild(square);
+        }
+      }
+
+      if (!gameOver) {
+        if (isCheckmate()) {
+          turnDisplay.textContent = `Skakmat! ${turn === 'white' ? 'Hitam' : 'Putih'} menang!`;
+          gameOver = true;
+          setTimeout(restartGame, 3000); // restart otomatis setelah skakmat
+        } else if (isInCheck(turn)) {
+          turnDisplay.textContent = `Giliran: ${turn === 'white' ? 'Putih' : 'Hitam'} (Skak!)`;
+        } else {
+          turnDisplay.textContent = `Giliran: ${turn === 'white' ? 'Putih' : 'Hitam'}`;
+        }
+      }
+    }
+
+    function hasKing(player) {
+      const king = player === 'white' ? 'K' : 'k';
+      for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+          if (game[r][c] === king) return true;
+        }
+      }
+      return false;
+    }
+
+    function handleClick(e) {
+      if (gameOver) return;
+      const row = parseInt(e.currentTarget.dataset.row);
+      const col = parseInt(e.currentTarget.dataset.col);
+      const piece = game[row][col];
+
+      if (selected) {
+        const [fromRow, fromCol] = selected;
+        const fromPiece = game[fromRow][fromCol];
+
+        if (isValidMove(fromPiece, fromRow, fromCol, row, col)) {
+          history.push(JSON.parse(JSON.stringify(game)));
+          game[row][col] = fromPiece;
+          game[fromRow][fromCol] = '';
+
+          if (fromPiece.toLowerCase() === 'p' && (row === 0 || row === 7)) {
+            game[row][col] = fromPiece === 'P' ? 'Q' : 'q';
+          }
+
+          selected = null;
+          turn = (turn === 'white') ? 'black' : 'white';
+        } else {
+          selected = null;
+        }
+        drawBoard();
+      } else {
+        if (piece && isCorrectTurn(piece)) {
+          selected = [row, col];
+          drawBoard();
+        }
+      }
+    }
+
+    function isCorrectTurn(piece) {
+      return (turn === 'white' && piece === piece.toUpperCase()) ||
+             (turn === 'black' && piece === piece.toLowerCase());
+    }
+
+    function isValidMove(piece, fromRow, fromCol, toRow, toCol) {
+      const dx = toCol - fromCol;
+      const dy = toRow - fromRow;
+      const target = game[toRow][toCol];
+      const absDx = Math.abs(dx);
+      const absDy = Math.abs(dy);
+      const isWhite = piece === piece.toUpperCase();
+
+      if (target && isCorrectTurn(target)) return false;
+      if (fromRow === toRow && fromCol === toCol) return false;
+
+      const p = piece.toLowerCase();
+
+      if (p === 'p') {
+        const dir = isWhite ? -1 : 1;
+        if (dx === 0 && game[toRow][toCol] === '') {
+          if (toRow === fromRow + dir) return true;
+          if ((isWhite && fromRow === 6 || !isWhite && fromRow === 1) && toRow === fromRow + 2 * dir && game[fromRow + dir][fromCol] === '') return true;
+        } else if (absDx === 1 && toRow === fromRow + dir && target) {
+          return true;
+        }
+      } else if (p === 'r') {
+        return (dx === 0 || dy === 0) && pathClear(fromRow, fromCol, toRow, toCol);
+      } else if (p === 'b') {
+        return absDx === absDy && pathClear(fromRow, fromCol, toRow, toCol);
+      } else if (p === 'q') {
+        return (dx === 0 || dy === 0 || absDx === absDy) && pathClear(fromRow, fromCol, toRow, toCol);
+      } else if (p === 'n') {
+        return (absDx === 2 && absDy === 1) || (absDx === 1 && absDy === 2);
+      } else if (p === 'k') {
+        return absDx <= 1 && absDy <= 1;
+      }
+      return false;
+    }
+
+    function pathClear(fr, fc, tr, tc) {
+      const dRow = Math.sign(tr - fr);
+      const dCol = Math.sign(tc - fc);
+      let r = fr + dRow;
+      let c = fc + dCol;
+      while (r !== tr || c !== tc) {
+        if (game[r][c] !== '') return false;
+        r += dRow;
+        c += dCol;
+      }
+      return true;
+    }
+
+    function restartGame() {
+      game = JSON.parse(JSON.stringify(initialBoard));
+      selected = null;
+      turn = 'white';
+      history = [];
+      gameOver = false;
+      drawBoard();
+    }
+
+    function undoMove() {
+      if (history.length > 0 && !gameOver) {
+        game = history.pop();
+        turn = (turn === 'white') ? 'black' : 'white';
+        drawBoard();
+      }
+    }
+
+    function toggleDarkMode() {
+      document.body.classList.toggle('dark-mode');
+    }
+
+    function isInCheck(player) {
+      const king = player === 'white' ? 'K' : 'k';
+      let kingRow, kingCol;
+      for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+          if (game[r][c] === king) {
+            kingRow = r;
+            kingCol = c;
+          }
+        }
+      }
+      for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+          const p = game[r][c];
+          if (p && isCorrectTurn(p) !== (player === 'white')) {
+            if (isValidMove(p, r, c, kingRow, kingCol)) return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    function isCheckmate() {
+      for (let r1 = 0; r1 < 8; r1++) {
+        for (let c1 = 0; c1 < 8; c1++) {
+          const p = game[r1][c1];
+          if (p && isCorrectTurn(p)) {
+            for (let r2 = 0; r2 < 8; r2++) {
+              for (let c2 = 0; c2 < 8; c2++) {
+                if (isValidMove(p, r1, c1, r2, c2)) {
+                  const backup = game[r2][c2];
+                  game[r2][c2] = p;
+                  game[r1][c1] = '';
+                  const check = isInCheck(turn);
+                  game[r1][c1] = p;
+                  game[r2][c2] = backup;
+                  if (!check) return false;
+                }
+              }
+            }
+          }
+        }
+      }
+      return isInCheck(turn);
+    }
+
+    drawBoard();
+  </script>
+</body>
+</html>

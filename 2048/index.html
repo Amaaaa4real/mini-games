@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>2048 Game</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: sans-serif;
+      background: #faf8ef;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+    h1 {
+      font-size: 3rem;
+      color: #776e65;
+    }
+    #score {
+      font-size: 1.2rem;
+      margin-bottom: 10px;
+      color: #333;
+    }
+    #restart-btn {
+      padding: 8px 16px;
+      font-size: 1rem;
+      margin-bottom: 15px;
+      cursor: pointer;
+      border: none;
+      background: #8f7a66;
+      color: #fff;
+      border-radius: 5px;
+    }
+    #game-board {
+      display: grid;
+      grid-template-columns: repeat(4, 100px);
+      grid-gap: 10px;
+      background: #bbada0;
+      padding: 10px;
+      border-radius: 10px;
+    }
+    .tile {
+      width: 100px;
+      height: 100px;
+      background: #cdc1b4;
+      font-size: 2rem;
+      color: #776e65;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      border-radius: 5px;
+    }
+    .tile-2 { background: #eee4da; }
+    .tile-4 { background: #ede0c8; }
+    .tile-8 { background: #f2b179; color: #fff; }
+    .tile-16 { background: #f59563; color: #fff; }
+    .tile-32 { background: #f67c5f; color: #fff; }
+    .tile-64 { background: #f65e3b; color: #fff; }
+    .tile-128 { background: #edcf72; color: #fff; font-size: 1.5rem; }
+    .tile-256 { background: #edcc61; color: #fff; font-size: 1.5rem; }
+    .tile-512 { background: #edc850; color: #fff; font-size: 1.5rem; }
+    .tile-1024 { background: #edc53f; color: #fff; font-size: 1.2rem; }
+    .tile-2048 { background: #edc22e; color: #fff; font-size: 1.2rem; }
+    #game-over {
+      color: red;
+      font-size: 1.5rem;
+      margin-top: 15px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <h1>2048</h1>
+  <div id="score">Score: 0</div>
+  <button id="restart-btn">Restart</button>
+  <div id="game-board"></div>
+  <div id="game-over">Game Over!</div>
+
+  <audio id="merge-sound" src="https://cdn.pixabay.com/download/audio/2022/03/28/audio_6ba0e6a48f.mp3?filename=correct-2-46134.mp3"></audio>
+  <audio id="spawn-sound" src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_578e8302fb.mp3?filename=failure-1-89170.mp3"></audio>
+
+  <script>
+    const board = document.getElementById("game-board");
+    const scoreDisplay = document.getElementById("score");
+    const gameOverText = document.getElementById("game-over");
+    const mergeSound = document.getElementById("merge-sound");
+    const spawnSound = document.getElementById("spawn-sound");
+    const restartBtn = document.getElementById("restart-btn");
+
+    let tiles = [];
+    let score = 0;
+
+    function initBoard() {
+      tiles = Array(4).fill().map(() => Array(4).fill(0));
+      score = 0;
+      gameOverText.style.display = 'none';
+      addRandomTile();
+      addRandomTile();
+      drawBoard();
+      updateScore();
+    }
+
+    function drawBoard() {
+      board.innerHTML = "";
+      for (let row = 0; row < 4; row++) {
+        for (let col = 0; col < 4; col++) {
+          const value = tiles[row][col];
+          const tile = document.createElement("div");
+          tile.className = "tile" + (value ? ` tile-${value}` : "");
+          tile.textContent = value || "";
+          board.appendChild(tile);
+        }
+      }
+    }
+
+    function addRandomTile() {
+      let empty = [];
+      for (let r = 0; r < 4; r++) {
+        for (let c = 0; c < 4; c++) {
+          if (tiles[r][c] === 0) empty.push([r, c]);
+        }
+      }
+      if (empty.length === 0) return;
+      const [r, c] = empty[Math.floor(Math.random() * empty.length)];
+      tiles[r][c] = Math.random() > 0.1 ? 2 : 4;
+      spawnSound.play();
+    }
+
+    function slide(row) {
+      let filtered = row.filter(val => val);
+      for (let i = 0; i < filtered.length - 1; i++) {
+        if (filtered[i] === filtered[i + 1]) {
+          filtered[i] *= 2;
+          score += filtered[i];
+          filtered[i + 1] = 0;
+          mergeSound.play();
+        }
+      }
+      filtered = filtered.filter(val => val);
+      return filtered.concat(Array(4 - filtered.length).fill(0));
+    }
+
+    function rotateClockwise(matrix) {
+      return matrix[0].map((_, i) => matrix.map(row => row[i]).reverse());
+    }
+
+    function rotateCounterClockwise(matrix) {
+      return matrix[0].map((_, i) => matrix.map(row => row[row.length - 1 - i]));
+    }
+
+    function move(direction) {
+      let rotated = tiles;
+      if (direction === "up") rotated = rotateCounterClockwise(tiles);
+      else if (direction === "down") rotated = rotateClockwise(tiles);
+      else if (direction === "right") rotated = tiles.map(row => row.reverse());
+
+      let newTiles = rotated.map(slide);
+
+      if (direction === "up") newTiles = rotateClockwise(newTiles);
+      else if (direction === "down") newTiles = rotateCounterClockwise(newTiles);
+      else if (direction === "right") newTiles = newTiles.map(row => row.reverse());
+
+      if (JSON.stringify(tiles) !== JSON.stringify(newTiles)) {
+        tiles = newTiles;
+        addRandomTile();
+        drawBoard();
+        updateScore();
+        if (checkGameOver()) {
+          gameOverText.style.display = 'block';
+        }
+      }
+    }
+
+    function updateScore() {
+      scoreDisplay.textContent = `Score: ${score}`;
+    }
+
+    function checkGameOver() {
+      for (let r = 0; r < 4; r++) {
+        for (let c = 0; c < 4; c++) {
+          if (tiles[r][c] === 0) return false;
+          if (c < 3 && tiles[r][c] === tiles[r][c + 1]) return false;
+          if (r < 3 && tiles[r][c] === tiles[r + 1][c]) return false;
+        }
+      }
+      return true;
+    }
+
+    window.addEventListener("keydown", (e) => {
+      if (gameOverText.style.display === 'block') return;
+      switch (e.key) {
+        case "ArrowUp": move("up"); break;
+        case "ArrowDown": move("down"); break;
+        case "ArrowLeft": move("left"); break;
+        case "ArrowRight": move("right"); break;
+      }
+    });
+
+    restartBtn.addEventListener("click", () => {
+      initBoard();
+    });
+
+    initBoard();
+  </script>
+</body>
+</html>
