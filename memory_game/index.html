@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Memory Game Ultimate</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: "Segoe UI", sans-serif;
+        background-color: #1f2937;
+        color: white;
+        transition: background 0.3s, color 0.3s;
+      }
+      body.light {
+        background-color: #f9fafb;
+        color: #111827;
+      }
+
+      .container {
+        max-width: 800px;
+        margin: auto;
+        padding: 20px;
+        text-align: center;
+      }
+      .game-board {
+        display: grid;
+        gap: 10px;
+        justify-content: center;
+        perspective: 1000px;
+        margin-top: 20px;
+      }
+      .card {
+        width: 80px;
+        height: 80px;
+        position: relative;
+        transform-style: preserve-3d;
+        transition: transform 0.5s;
+        cursor: pointer;
+      }
+      .card.flip {
+        transform: rotateY(180deg);
+      }
+      .front,
+      .back {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        border-radius: 10px;
+        backface-visibility: hidden;
+        font-size: 1.5rem;
+        font-weight: bold;
+      }
+      .front {
+        background: #3b82f6;
+        color: white;
+        transform: rotateY(180deg);
+      }
+      .back {
+        background: #facc15;
+        color: #1e293b;
+      }
+
+      select,
+      button {
+        padding: 10px;
+        margin: 5px;
+        font-size: 1rem;
+        border-radius: 5px;
+      }
+      .hidden {
+        display: none;
+      }
+      .top-bar {
+        display: flex;
+        justify-content: space-between;
+        margin: 10px 0;
+      }
+      .leaderboard {
+        text-align: left;
+        margin-top: 20px;
+      }
+      .toggle-mode {
+        float: right;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body class="light">
+    <div class="container">
+      <h1>🎮 Memory Game Ultimate</h1>
+      <div class="toggle-mode">
+        <button onclick="toggleMode()">🌗 Ganti Tema</button>
+        <button onclick="toggleMusic()" id="musicBtn">🔊</button>
+      </div>
+
+      <div id="menu">
+        <label for="level">Pilih Level:</label>
+        <select id="level">
+          <option value="easy">Easy (3x4)</option>
+          <option value="medium">Medium (4x4)</option>
+          <option value="hard">Hard (5x6)</option>
+        </select>
+        <button onclick="startGame()">Mulai</button>
+        <div id="highScore">🏆 High Score: 0</div>
+        <div class="leaderboard">
+          <h3>📊 Leaderboard:</h3>
+          <ul id="leaderboardList"></ul>
+        </div>
+      </div>
+
+      <div id="game" class="hidden">
+        <div class="top-bar">
+          <div id="timer">⏱️ 60</div>
+          <div id="score">💯 Skor: 0</div>
+          <button onclick="backToMenu()">🏠 Menu</button>
+        </div>
+        <div class="game-board" id="gameBoard"></div>
+      </div>
+    </div>
+
+    <audio id="bgMusic" src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_3f1159c2f0.mp3?filename=lofi-chill-121427.mp3" loop></audio>
+    <audio id="flipSound" src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_89e162a8b1.mp3?filename=flipcard-1.mp3"></audio>
+    <audio id="matchSound" src="https://cdn.pixabay.com/download/audio/2022/03/28/audio_6ba0e6a48f.mp3?filename=correct-2-46134.mp3"></audio>
+    <audio id="winSound" src="https://cdn.pixabay.com/download/audio/2021/08/09/audio_01fbb48e76.mp3?filename=success-1-6297.mp3"></audio>
+
+    <script>
+      const emojis = ["🍕", "🐱", "🎵", "🌈", "🚗", "👻", "🧊", "🍩", "⚽", "💎", "🌟", "🐸", "🍉", "📦", "💡"];
+      let cards = [],
+        flipped = [],
+        match = 0,
+        score = 0,
+        clicks = 0,
+        timer,
+        timeLeft = 60;
+      let pairs = 0,
+        level = "easy";
+
+      const board = document.getElementById("gameBoard");
+      const scoreText = document.getElementById("score");
+      const timerText = document.getElementById("timer");
+      const music = document.getElementById("bgMusic");
+
+      function toggleMode() {
+        document.body.classList.toggle("dark");
+        document.body.classList.toggle("light");
+      }
+
+      function toggleMusic() {
+        const btn = document.getElementById("musicBtn");
+        if (music.paused) {
+          music.play();
+          btn.textContent = "🔊";
+        } else {
+          music.pause();
+          btn.textContent = "🔇";
+        }
+      }
+
+      function startGame() {
+        level = document.getElementById("level").value;
+        match = 0;
+        score = 0;
+        clicks = 0;
+        flipped = [];
+        board.innerHTML = "";
+        clearInterval(timer);
+
+        let cols = 4;
+        pairs = 6;
+        timeLeft = 60;
+        if (level === "medium") {
+          pairs = 8;
+          timeLeft = 75;
+        }
+        if (level === "hard") {
+          pairs = 15;
+          cols = 6;
+          timeLeft = 90;
+        }
+
+        let data = [...emojis.slice(0, pairs), ...emojis.slice(0, pairs)];
+        data.sort(() => 0.5 - Math.random());
+
+        board.style.gridTemplateColumns = `repeat(${cols}, 80px)`;
+        data.forEach((e) => {
+          const card = document.createElement("div");
+          card.className = "card";
+          card.dataset.emoji = e;
+          card.innerHTML = `<div class="front">${e}</div><div class="back">?</div>`;
+          card.onclick = flipCard;
+          board.appendChild(card);
+        });
+
+        document.getElementById("menu").classList.add("hidden");
+        document.getElementById("game").classList.remove("hidden");
+        updateInfo();
+        timer = setInterval(() => {
+          timeLeft--;
+          if (timeLeft <= 0) {
+            clearInterval(timer);
+            alert("⏰ Waktu habis!");
+            backToMenu();
+          }
+          updateInfo();
+        }, 1000);
+        music.play();
+      }
+
+      function flipCard() {
+        if (this.classList.contains("flip") || flipped.length === 2) return;
+        document.getElementById("flipSound").play();
+        this.classList.add("flip");
+        flipped.push(this);
+        clicks++;
+        if (flipped.length === 2) {
+          let [a, b] = flipped;
+          if (a.dataset.emoji === b.dataset.emoji) {
+            match++;
+            document.getElementById("matchSound").play();
+            flipped = [];
+            if (match === pairs) {
+              clearInterval(timer);
+              score = pairs * 100 - clicks * 10;
+              document.getElementById("winSound").play();
+              updateHighScore();
+              updateLeaderboard(score);
+              setTimeout(() => alert(`🎉 Menang! Skor: ${score}`), 300);
+              backToMenu();
+            }
+          } else {
+            setTimeout(() => {
+              a.classList.remove("flip");
+              b.classList.remove("flip");
+              flipped = [];
+            }, 700);
+          }
+          updateInfo();
+        }
+      }
+
+      function updateInfo() {
+        timerText.textContent = `⏱️ ${timeLeft}`;
+        scoreText.textContent = `💯 Skor: ${pairs * 100 - clicks * 10}`;
+      }
+
+      function backToMenu() {
+        clearInterval(timer);
+        document.getElementById("menu").classList.remove("hidden");
+        document.getElementById("game").classList.add("hidden");
+        music.pause();
+        showHighScore();
+        showLeaderboard();
+      }
+
+      function updateHighScore() {
+        let key = `highscore_${level}`;
+        let prev = localStorage.getItem(key) || 0;
+        if (score > prev) {
+          localStorage.setItem(key, score);
+        }
+      }
+
+      function showHighScore() {
+        let key = `highscore_${document.getElementById("level").value}`;
+        let s = localStorage.getItem(key) || 0;
+        document.getElementById("highScore").textContent = `🏆 High Score: ${s}`;
+      }
+
+      function updateLeaderboard(newScore) {
+        let key = `leaderboard_${level}`;
+        let board = JSON.parse(localStorage.getItem(key) || "[]");
+        board.push(newScore);
+        board.sort((a, b) => b - a);
+        board = board.slice(0, 3);
+        localStorage.setItem(key, JSON.stringify(board));
+      }
+
+      function showLeaderboard() {
+        let key = `leaderboard_${document.getElementById("level").value}`;
+        let board = JSON.parse(localStorage.getItem(key) || "[]");
+        let list = document.getElementById("leaderboardList");
+        list.innerHTML = board.map((s) => `<li>⭐ ${s}</li>`).join("");
+      }
+
+      showHighScore();
+      showLeaderboard();
+    </script>
+  </body>
+</html>

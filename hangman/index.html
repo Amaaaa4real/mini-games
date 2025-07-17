@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hangman Ultimate</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        font-family: Arial, sans-serif;
+        background-color: #1f2937;
+        color: white;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: start;
+        padding: 20px;
+        min-height: 100vh;
+        transition: background 0.3s;
+      }
+      h1 {
+        margin-bottom: 10px;
+      }
+      #hint {
+        font-size: 1.1rem;
+        color: #facc15;
+        margin-bottom: 10px;
+      }
+      #word {
+        font-size: 2rem;
+        letter-spacing: 0.5rem;
+        margin: 20px;
+      }
+      #letters,
+      #vowels {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+      #letters button,
+      #vowels button {
+        margin: 5px;
+        padding: 10px 15px;
+        font-size: 1rem;
+        cursor: pointer;
+        border-radius: 5px;
+      }
+      #status {
+        margin-top: 20px;
+        font-size: 1.2rem;
+      }
+      #restartBtn,
+      #startBtn {
+        margin-top: 20px;
+        padding: 10px 20px;
+        font-size: 1rem;
+      }
+      #stickman {
+        width: 150px;
+        height: 200px;
+        position: relative;
+        margin: 20px auto;
+      }
+      .part {
+        position: absolute;
+        background: white;
+        transition: opacity 0.3s;
+        opacity: 0;
+      }
+      .visible {
+        opacity: 1;
+      }
+      .head {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        top: 10px;
+        left: 55px;
+        border: 4px solid white;
+        background: transparent;
+      }
+      .body {
+        width: 4px;
+        height: 50px;
+        top: 50px;
+        left: 73px;
+      }
+      .arm-left {
+        width: 4px;
+        height: 30px;
+        top: 55px;
+        left: 50px;
+        transform: rotate(-45deg);
+      }
+      .arm-right {
+        width: 4px;
+        height: 30px;
+        top: 55px;
+        left: 95px;
+        transform: rotate(45deg);
+      }
+      .leg-left {
+        width: 4px;
+        height: 30px;
+        top: 100px;
+        left: 55px;
+        transform: rotate(-30deg);
+      }
+      .leg-right {
+        width: 4px;
+        height: 30px;
+        top: 100px;
+        left: 90px;
+        transform: rotate(30deg);
+      }
+      #homeScreen {
+        display: block;
+        text-align: center;
+      }
+      #gameScreen {
+        display: none;
+      }
+      input[type="text"] {
+        padding: 5px;
+        margin: 5px;
+        border-radius: 5px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="homeScreen">
+      <h1>🪓 Hangman Ultimate</h1>
+      <p>Pilih mode permainan:</p>
+      <button onclick="startRandomGame()">🔀 Kata Acak</button>
+      <br /><br />
+      <label>Kata Custom:</label>
+      <input type="text" id="customWord" placeholder="Masukkan kata" />
+      <br />
+      <label>Hint:</label>
+      <input type="text" id="customHint" placeholder="Masukkan hint" />
+      <br />
+      <button onclick="startCustomGame()">✍️ Mulai Custom</button>
+    </div>
+
+    <div id="gameScreen">
+      <h1>🎯 Tebak Kata</h1>
+      <div id="hint">Hint:</div>
+      <div id="word">_ _ _</div>
+      <div id="vowels"></div>
+      <div id="letters"></div>
+      <div id="stickman">
+        <div class="part head" id="part0"></div>
+        <div class="part body" id="part1"></div>
+        <div class="part arm-left" id="part2"></div>
+        <div class="part arm-right" id="part3"></div>
+        <div class="part leg-left" id="part4"></div>
+        <div class="part leg-right" id="part5"></div>
+      </div>
+      <div id="status"></div>
+      <button id="restartBtn" onclick="backToHome()">🏠 Kembali</button>
+    </div>
+
+    <audio id="correctSound" src="https://cdn.pixabay.com/download/audio/2022/03/28/audio_6ba0e6a48f.mp3?filename=correct-2-46134.mp3"></audio>
+    <audio id="wrongSound" src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_578e8302fb.mp3?filename=failure-1-89170.mp3"></audio>
+    <audio id="winSound" src="https://cdn.pixabay.com/download/audio/2021/08/09/audio_01fbb48e76.mp3?filename=success-1-6297.mp3"></audio>
+    <audio id="loseSound" src="https://cdn.pixabay.com/download/audio/2022/03/23/audio_60d93ec3fd.mp3?filename=game-over-arcade-6435.mp3"></audio>
+
+    <script>
+      const words = [
+        { word: "kucing", hint: "Hewan peliharaan lucu" },
+        { word: "pisang", hint: "Buah berwarna kuning" },
+        { word: "komputer", hint: "Digunakan untuk coding" },
+        { word: "jakarta", hint: "Ibu kota Indonesia" },
+        { word: "elektron", hint: "Partikel bermuatan negatif" },
+        { word: "harimau", hint: "Hewan buas loreng" },
+        { word: "pelangi", hint: "Muncul setelah hujan" },
+        { word: "garuda", hint: "Lambang negara Indonesia" },
+        { word: "java", hint: "Pulau atau bahasa pemrograman?" },
+        { word: "dokter", hint: "Menyembuhkan orang sakit" },
+        { word: "nasi", hint: "Makanan pokok orang Indonesia" },
+        { word: "angin", hint: "Tak terlihat tapi terasa" },
+        { word: "kamera", hint: "Alat untuk memotret" },
+        { word: "singa", hint: "Raja hutan" },
+        { word: "gajah", hint: "Hewan darat terbesar" },
+        { word: "meja", hint: "Tempat meletakkan barang" },
+        { word: "jendela", hint: "Tempat melihat dari dalam ke luar" },
+        { word: "guru", hint: "Pahlawan tanpa tanda jasa" },
+        { word: "planet", hint: "Bumi adalah salah satunya" },
+        { word: "pelabuhan", hint: "Tempat kapal bersandar" },
+        { word: "roti", hint: "Biasanya dimakan saat sarapan" },
+        { word: "internet", hint: "Digunakan untuk browsing" },
+        { word: "laptop", hint: "Komputer jinjing" },
+        { word: "sungai", hint: "Air mengalir di antara daratan" },
+        { word: "laut", hint: "Air asin yang sangat luas" },
+        { word: "hujan", hint: "Turun dari langit, membasahi bumi" },
+        { word: "topi", hint: "Penutup kepala" },
+        { word: "sepatu", hint: "Dipakai di kaki" },
+        { word: "kereta", hint: "Transportasi cepat di rel" },
+        { word: "motor", hint: "Kendaraan roda dua" },
+        { word: "jaket", hint: "Dipakai untuk menghangatkan tubuh" },
+        { word: "bioskop", hint: "Tempat nonton film" },
+        { word: "printer", hint: "Mencetak dokumen" },
+        { word: "kamera", hint: "Mengabadikan momen" },
+        { word: "buku", hint: "Sumber ilmu" },
+        { word: "pintu", hint: "Tempat masuk ruangan" },
+        { word: "kapal", hint: "Transportasi air" },
+        { word: "balon", hint: "Biasa untuk pesta" },
+        { word: "jamur", hint: "Tumbuh di tempat lembap" },
+        { word: "pisau", hint: "Alat untuk memotong" },
+        { word: "tikus", hint: "Hewan pengerat" },
+        { word: "serigala", hint: "Hewan buas mirip anjing" },
+        { word: "elang", hint: "Burung pemangsa" },
+        { word: "sabun", hint: "Untuk membersihkan" },
+        { word: "keris", hint: "Senjata tradisional" },
+        { word: "tenda", hint: "Tempat tidur saat berkemah" },
+        { word: "api", hint: "Bisa menghangatkan, bisa membakar" },
+        { word: "bintang", hint: "Bersinar di malam hari" },
+        { word: "bulan", hint: "Satelit alami bumi" },
+        { word: "matahari", hint: "Sumber cahaya siang hari" },
+        { word: "perpustakaan", hint: "Tempat membaca buku" },
+        { word: "keseimbangan", hint: "Kondisi stabil dan tidak goyah" },
+        { word: "pengalaman", hint: "Hasil dari belajar atau mencoba" },
+        { word: "bertanggungjawab", hint: "Memiliki kewajiban atas sesuatu" },
+        { word: "kemerdekaan", hint: "Bebas dari penjajahan" },
+        { word: "pengetahuan", hint: "Hasil dari proses belajar" },
+        { word: "perkebunan", hint: "Tempat tumbuh tanaman seperti teh/kopi" },
+        { word: "pengembangan", hint: "Proses menjadi lebih baik atau besar" },
+        { word: "keindonesiaan", hint: "Segala sesuatu tentang Indonesia" },
+        { word: "pertanggungjawaban", hint: "Bentuk resmi dari tanggung jawab" },
+        { word: "pekerjaanrumah", hint: "Tugas yang dibawa pulang dari sekolah" },
+        { word: "pemberitahuan", hint: "Informasi resmi atau umum" },
+        { word: "penyelenggaraan", hint: "Proses pelaksanaan suatu kegiatan" },
+        { word: "ketidakseimbangan", hint: "Keadaan yang tidak stabil" },
+        { word: "perpustakaan", hint: "Tempat banyak buku untuk dibaca" },
+        { word: "kesempatan", hint: "Waktu atau peluang untuk melakukan sesuatu" },
+        { word: "perjalanan", hint: "Aktivitas berpindah tempat" },
+        { word: "kesulitan", hint: "Kondisi yang tidak mudah" },
+        { word: "ketekunan", hint: "Sifat rajin dan tidak mudah menyerah" },
+        { word: "pengaruh", hint: "Efek yang ditimbulkan sesuatu" },
+        { word: "kesuksesan", hint: "Pencapaian dari suatu tujuan" },
+      ];
+
+      let chosenWord = "",
+        hint = "",
+        displayWord = [],
+        wrongGuesses = 0;
+      const maxWrong = 6;
+
+      const wordDiv = document.getElementById("word");
+      const lettersDiv = document.getElementById("letters");
+      const vowelsDiv = document.getElementById("vowels");
+      const hintDiv = document.getElementById("hint");
+      const statusDiv = document.getElementById("status");
+
+      function startRandomGame() {
+        const data = words[Math.floor(Math.random() * words.length)];
+        startGame(data.word, data.hint);
+      }
+
+      function startCustomGame() {
+        const custom = document.getElementById("customWord").value.trim().toLowerCase();
+        const clue = document.getElementById("customHint").value.trim();
+        if (!custom || !clue) return alert("Isi kata dan hint dulu!");
+        startGame(custom, clue);
+      }
+
+      function startGame(word, clue) {
+        chosenWord = word;
+        hint = clue;
+        wrongGuesses = 0;
+        displayWord = Array(chosenWord.length).fill("_");
+        wordDiv.textContent = displayWord.join(" ");
+        hintDiv.textContent = "Hint: " + hint;
+        statusDiv.textContent = "";
+        document.getElementById("homeScreen").style.display = "none";
+        document.getElementById("gameScreen").style.display = "block";
+
+        for (let i = 0; i < maxWrong; i++) {
+          document.getElementById("part" + i).classList.remove("visible");
+        }
+
+        renderButtons();
+      }
+
+      function renderButtons() {
+        lettersDiv.innerHTML = "";
+        vowelsDiv.innerHTML = "";
+        const vowels = ["a", "i", "u", "e", "o"];
+
+        for (let i = 97; i <= 122; i++) {
+          const char = String.fromCharCode(i);
+          const btn = document.createElement("button");
+          btn.textContent = char;
+          btn.onclick = () => guessLetter(char, btn);
+          (vowels.includes(char) ? vowelsDiv : lettersDiv).appendChild(btn);
+        }
+      }
+
+      function guessLetter(letter, button) {
+        button.disabled = true;
+        let found = false;
+        for (let i = 0; i < chosenWord.length; i++) {
+          if (chosenWord[i] === letter) {
+            displayWord[i] = letter;
+            found = true;
+          }
+        }
+
+        if (found) document.getElementById("correctSound").play();
+        else {
+          document.getElementById("wrongSound").play();
+          document.getElementById("part" + wrongGuesses).classList.add("visible");
+          wrongGuesses++;
+        }
+
+        wordDiv.textContent = displayWord.join(" ");
+
+        if (!displayWord.includes("_")) {
+          statusDiv.textContent = "🎉 Kamu Menang!";
+          document.getElementById("winSound").play();
+          disableAll();
+        } else if (wrongGuesses >= maxWrong) {
+          statusDiv.textContent = `💀 Kamu Kalah! Kata: ${chosenWord}`;
+          document.getElementById("loseSound").play();
+          disableAll();
+        }
+      }
+
+      function disableAll() {
+        [...lettersDiv.children, ...vowelsDiv.children].forEach((btn) => (btn.disabled = true));
+      }
+
+      function backToHome() {
+        document.getElementById("homeScreen").style.display = "block";
+        document.getElementById("gameScreen").style.display = "none";
+      }
+
+      // Input huruf dari keyboard
+      window.addEventListener("keydown", (e) => {
+        const letter = e.key.toLowerCase();
+        const btn = [...lettersDiv.children, ...vowelsDiv.children].find((b) => b.textContent === letter);
+        if (btn && !btn.disabled) btn.click();
+      });
+    </script>
+  </body>
+</html>
